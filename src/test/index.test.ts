@@ -1,87 +1,167 @@
-import { EasyPrivateVotingContractArtifact, EasyPrivateVotingContract } from "../artifacts/EasyPrivateVoting.js"
-import { AccountWallet, CompleteAddress, ContractDeployer, createDebugLogger, Fr, PXE, waitForPXE, TxStatus, createPXEClient, getContractInstanceFromDeployParams, DebugLogger } from "@aztec/aztec.js";
-import { getInitialTestAccountsWallets } from "@aztec/accounts/testing"
+import {
+  EasyPrivateVotingContractArtifact,
+  EasyPrivateVotingContract,
+} from "../artifacts/EasyPrivateVoting.js";
+import {
+  AccountWallet,
+  CompleteAddress,
+  ContractDeployer,
+  createDebugLogger,
+  Fr,
+  PXE,
+  waitForPXE,
+  TxStatus,
+  createPXEClient,
+  getContractInstanceFromDeployParams,
+  DebugLogger,
+} from "@aztec/aztec.js";
+import { getInitialTestAccountsWallets } from "@aztec/accounts/testing";
 
 const setupSandbox = async () => {
-    const { PXE_URL = 'http://localhost:8080' } = process.env;
-    const pxe = createPXEClient(PXE_URL);
-    await waitForPXE(pxe);
-    return pxe;
+  const { PXE_URL = "http://localhost:8080" } = process.env;
+  const pxe = createPXEClient(PXE_URL);
+  await waitForPXE(pxe);
+  return pxe;
 };
 
 describe("Voting", () => {
-    let pxe: PXE;
-    let wallets: AccountWallet[] = [];
-    let accounts: CompleteAddress[] = [];
-    let logger: DebugLogger;
+  let pxe: PXE;
+  let wallets: AccountWallet[] = [];
+  let accounts: CompleteAddress[] = [];
+  let logger: DebugLogger;
 
-    beforeAll(async () => {
-        logger = createDebugLogger('aztec:aztec-starter');
-        logger.info("Aztec-Starter tests running.")
+  beforeAll(async () => {
+    logger = createDebugLogger("aztec:aztec-starter");
+    logger.info("Aztec-Starter tests running.");
 
-        pxe = await setupSandbox();
+    pxe = await setupSandbox();
 
-        wallets = await getInitialTestAccountsWallets(pxe);
-        accounts = wallets.map(w => w.getCompleteAddress())
-    })
+    wallets = await getInitialTestAccountsWallets(pxe);
+    accounts = wallets.map((w) => w.getCompleteAddress());
+  });
 
-    it("Deploys the contract", async () => {
-        const salt = Fr.random();
-        const VotingContractArtifact = EasyPrivateVotingContractArtifact
-        const [deployerWallet, adminWallet] = wallets; // using first account as deployer and second as contract admin
-        const adminAddress = adminWallet.getCompleteAddress().address;
+  it("Deploys the contract", async () => {
+    const salt = Fr.random();
+    const VotingContractArtifact = EasyPrivateVotingContractArtifact;
+    const [deployerWallet, adminWallet] = wallets; // using first account as deployer and second as contract admin
+    const adminAddress = adminWallet.getCompleteAddress().address;
 
-        const deploymentData = getContractInstanceFromDeployParams(VotingContractArtifact,
-            {
-                constructorArgs: [adminAddress],
-                salt,
-                deployer: deployerWallet.getAddress()
-            });
-        const deployer = new ContractDeployer(VotingContractArtifact, deployerWallet);
-        const tx = deployer.deploy(adminAddress).send({ contractAddressSalt: salt })
-        const receipt = await tx.getReceipt();
+    const deploymentData = getContractInstanceFromDeployParams(
+      VotingContractArtifact,
+      {
+        constructorArgs: [adminAddress],
+        salt,
+        deployer: deployerWallet.getAddress(),
+      }
+    );
+    const deployer = new ContractDeployer(
+      VotingContractArtifact,
+      deployerWallet
+    );
+    const tx = deployer
+      .deploy(adminAddress)
+      .send({ contractAddressSalt: salt });
+    const receipt = await tx.getReceipt();
 
-        expect(receipt).toEqual(
-            expect.objectContaining({
-                status: TxStatus.PENDING,
-                error: ''
-            }),
-        );
+    expect(receipt).toEqual(
+      expect.objectContaining({
+        status: TxStatus.PENDING,
+        error: "",
+      })
+    );
 
-        const receiptAfterMined = await tx.wait({ wallet: deployerWallet });
+    const receiptAfterMined = await tx.wait({ wallet: deployerWallet });
 
-        expect(await pxe.getContractInstance(deploymentData.address)).toBeDefined();
-        expect(await pxe.isContractPubliclyDeployed(deploymentData.address)).toBeTruthy();
-        expect(receiptAfterMined).toEqual(
-            expect.objectContaining({
-                status: TxStatus.SUCCESS,
-            }),
-        );
+    expect(await pxe.getContractInstance(deploymentData.address)).toBeDefined();
+    expect(
+      await pxe.isContractPubliclyDeployed(deploymentData.address)
+    ).toBeTruthy();
+    expect(receiptAfterMined).toEqual(
+      expect.objectContaining({
+        status: TxStatus.SUCCESS,
+      })
+    );
 
-        expect(receiptAfterMined.contract.instance.address).toEqual(deploymentData.address)
-    }, 300_000)
+    expect(receiptAfterMined.contract.instance.address).toEqual(
+      deploymentData.address
+    );
+  }, 300_000);
 
-    it("It casts a vote", async () => {
-        const candidate = new Fr(1)
+  it("It casts a vote", async () => {
+    const candidate = new Fr(1);
 
-        const contract = await EasyPrivateVotingContract.deploy(wallets[0], accounts[0].address).send().deployed();
-        const tx = await contract.methods.cast_vote(candidate).send().wait();
-        let count = await contract.methods.get_vote(candidate).simulate();
-        expect(count).toBe(1n);
-    }, 300_000)
+    const contract = await EasyPrivateVotingContract.deploy(
+      wallets[0],
+      accounts[0].address
+    )
+      .send()
+      .deployed();
+    const tx = await contract.methods.cast_vote(candidate).send().wait();
+    let count = await contract.methods.get_vote(candidate).simulate();
+    expect(count).toBe(1n);
+  }, 300_000);
 
-    it("It should fail when trying to vote twice", async () => {
-        const candidate = new Fr(1)
+  it("It should fail when trying to vote twice", async () => {
+    const candidate = new Fr(1);
 
-        const contract = await EasyPrivateVotingContract.deploy(wallets[0], accounts[0].address).send().deployed();
-        await contract.methods.cast_vote(candidate).send().wait();
+    const contract = await EasyPrivateVotingContract.deploy(
+      wallets[0],
+      accounts[0].address
+    )
+      .send()
+      .deployed();
+    await contract.methods.cast_vote(candidate).send().wait();
 
-        const secondVoteReceipt = await contract.methods.cast_vote(candidate).send().getReceipt();
-        expect(secondVoteReceipt).toEqual(
-            expect.objectContaining({
-                status: TxStatus.DROPPED,
-            }),
-        );
-    }, 300_000)
+    const secondVoteReceipt = await contract.methods
+      .cast_vote(candidate)
+      .send()
+      .getReceipt();
+    expect(secondVoteReceipt).toEqual(
+      expect.objectContaining({
+        status: TxStatus.DROPPED,
+      })
+    );
+  }, 300_000);
 
+  it("It ends the vote correctly", async () => {
+    const candidate = new Fr(1);
+    const [deployerWallet, adminWallet, nonAdminWallet] = wallets;
+
+    // Deploy the contract with adminWallet as the admin
+    const contract = await EasyPrivateVotingContract.deploy(
+      deployerWallet,
+      adminWallet.getCompleteAddress().address
+    )
+      .send()
+      .deployed();
+
+
+    // End the vote with the admin account (should succeed)
+    const successfulEndVoteReceipt = await contract
+      .withWallet(adminWallet)
+      .methods.end_vote()
+      .send()
+      .wait();
+    expect(successfulEndVoteReceipt).toEqual(
+      expect.objectContaining({
+        status: TxStatus.SUCCESS,
+      })
+    );
+
+      // Try to end the vote with a non-admin account (should fail)
+      const failedEndVotePromise = contract
+        .withWallet(nonAdminWallet)
+        .methods.end_vote()
+        .send()
+        .wait();
+      await expect(failedEndVotePromise).rejects.toThrow(/Assertion failed: Only admin can end votes/);
+
+    // Verify that the vote has ended by trying to cast a vote (should fail)
+    const failedVotePromise = contract.methods
+      .cast_vote(candidate)
+      .send()
+      .wait();
+    await expect(failedVotePromise).rejects.toThrow(/Assertion failed: Vote has ended/);
+  }, 300_000);
 });
+
