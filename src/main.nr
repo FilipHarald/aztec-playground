@@ -1,5 +1,8 @@
 contract EasyPrivateVoting {
-    use dep::aztec::prelude::{AztecAddress, FunctionSelector, PrivateContext, Map, PublicMutable, SharedImmutable};
+    use dep::aztec::{
+      oracle::debug_log::{ debug_log },
+      prelude::{AztecAddress, Map, PublicMutable, SharedImmutable}
+    };
     use dep::aztec::keys::getters::get_historical_public_keys;
     #[aztec(storage)]
     struct Storage {
@@ -19,6 +22,7 @@ contract EasyPrivateVoting {
 
     #[aztec(private)] // annotation to mark function as private and expose private context
     fn cast_vote(candidate: Field) {
+      debug_log("======================================");
         // Below, we make sure to get our nullifier public key at a specific block. By pinning the nullifier public key at a specific block,
         // rotating keys will have no effect on the nullifier being produced, and voting again after will fail because the same nullifier is computed each time the user votes.
         let header_at_active_at_block = context.get_header_at(storage.active_at_block.read_private());
@@ -41,6 +45,8 @@ contract EasyPrivateVoting {
     #[aztec(public)] 
     fn end_vote() {
         assert(storage.admin.read().eq(context.msg_sender()), "Only admin can end votes"); // assert that caller is admin
+        context.emit_unencrypted_log("Vote has ended");
+        context.emit_unencrypted_log("Vote has ended2");
         storage.vote_ended.write(true);
     }
     unconstrained fn get_vote(candidate: Field) -> pub Field {

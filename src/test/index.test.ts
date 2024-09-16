@@ -135,33 +135,52 @@ describe("Voting", () => {
       .send()
       .deployed();
 
-
     // End the vote with the admin account (should succeed)
     const successfulEndVoteReceipt = await contract
       .withWallet(adminWallet)
       .methods.end_vote()
       .send()
       .wait();
+    // .getUnencryptedLogs();
+
+    // .wait({
+    //   debug: true,
+    // });
+
+    // Process and log the extracted message
+    // console.log(
+    //   "Extracted message:",
+    //   successfulEndVoteReceipt.logs.map((log) =>
+    //     log.log.data
+    //       .toString("utf-8")
+    //       .split("")
+    //       .filter((char) => char.charCodeAt(0) > 31)
+    //       .join("")
+    //   )
+    // );
     expect(successfulEndVoteReceipt).toEqual(
       expect.objectContaining({
         status: TxStatus.SUCCESS,
       })
     );
 
-      // Try to end the vote with a non-admin account (should fail)
-      const failedEndVotePromise = contract
-        .withWallet(nonAdminWallet)
-        .methods.end_vote()
-        .send()
-        .wait();
-      await expect(failedEndVotePromise).rejects.toThrow(/Assertion failed: Only admin can end votes/);
+    // Try to end the vote with a non-admin account (should fail)
+    const failedEndVotePromise = contract
+      .withWallet(nonAdminWallet)
+      .methods.end_vote()
+      .send()
+      .wait();
+    await expect(failedEndVotePromise).rejects.toThrow(
+      /Assertion failed: Only admin can end votes/
+    );
 
     // Verify that the vote has ended by trying to cast a vote (should fail)
     const failedVotePromise = contract.methods
       .cast_vote(candidate)
       .send()
       .wait();
-    await expect(failedVotePromise).rejects.toThrow(/Assertion failed: Vote has ended/);
+    await expect(failedVotePromise).rejects.toThrow(
+      /Assertion failed: Vote has ended/
+    );
   }, 300_000);
 });
-
